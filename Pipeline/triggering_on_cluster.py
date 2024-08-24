@@ -375,9 +375,9 @@ def finish_checks(files, output_dir, helios=True, resubmit_server=False,
 
 # Functions to submit runs on clusters
 # ------------------------------------
-def create_output_dir_name(template_conf, base_path=None, run_str='O2'):
+def create_trig_dir_name(template_conf, base_path=None, run_str='O2'):
     """
-    Function to create an output directory name for a subbank in a run.
+    Old function to create an output directory name for a subbank in a run.
     The name carries information about when the analysis was launched.
     :param template_conf: Path to the metadata.json file for the subbank
     :param base_path:
@@ -388,7 +388,7 @@ def create_output_dir_name(template_conf, base_path=None, run_str='O2'):
     :return: Path to the output directory
     """
     if base_path is None:
-        base_path = utils.OUTPUT_DIR[run_str.lower()]
+        base_path = utils.TRIG_DIR[run_str.lower()]
     str_time = "_".join("_".join(time.ctime().split()[:4]).split(":")[:2])
     output_path = os.path.join(
         base_path,
@@ -418,11 +418,11 @@ def submit_multibanks(
                           "O3a", or "O3b")
     :param test_few: If desired, number of files to submit as a test
     :param output_dirs:
-        If we are rerunning files, list of lists of output directories
-        (each entry a directory for a subbank) with [n_bank_ids x n_subbanks],
-        return value of utils.get_dirs.
-        One can also specify individual sub-banks
-        has recently been added (dirnames should end with subbank #)
+        Nested lists of output directories
+        as n_bank_ids x n_subbanks.
+        One can also specify list of particular sub-banks if needed,
+        note that dirnames should end with subbank #.
+        If None, we will generate the names in create_trig_dir_name()
     :param submit: Flag whether to submit to the cluster
     :param save_hole_correction:
         Flag whether to save hole correction, exposed here to rerun files
@@ -645,7 +645,7 @@ def submit_files_typhon(
 
     if output_dir is None:
         # Create output directory if it doesn't already exist
-        output_dir = create_output_dir_name(
+        output_dir = create_trig_dir_name(
             template_conf=template_conf, run_str=run_str)
 
     if submit:
@@ -759,13 +759,13 @@ def submit_files_helios(
 
     if output_dir is None:
         # Create output directory if it doesn't already exist
-        output_dir = create_output_dir_name(
+        output_dir = create_trig_dir_name(
             template_conf=template_conf, run_str=run_str)
 
     if submit:
         # # In the beginning, even the root output directory doesn't exist
         # # In this case, create it
-        # default_outputdir = utils.OUTPUT_DIR[run_str.lower()]
+        # default_outputdir = utils.TRIG_DIR[run_str.lower()]
         # if not os.path.isdir(default_outputdir):
         #     os.makedirs(default_outputdir)
         #     os.system(f"chmod 777 {default_outputdir}")
@@ -879,13 +879,13 @@ def submit_files_hyperion(
 
     if output_dir is None:
         # Create output directory if it doesn't already exist
-        output_dir = create_output_dir_name(template_conf=template_conf, run_str=run_str)
+        output_dir = create_trig_dir_name(template_conf=template_conf, run_str=run_str)
 
         # Sometimes even the default output dir does not exist. In these cases, create it
-        default_outputdir = utils.OUTPUT_DIR[run_str.lower()]
-        if not os.path.isdir(default_outputdir):
-            os.makedirs(default_outputdir)
-            os.system(f"chmod 777 {default_outputdir}")
+        # default_outputdir = utils.TRIG_DIR[run_str.lower()]
+        # if not os.path.isdir(default_outputdir):
+        #     os.makedirs(default_outputdir)
+        #     os.system(f"chmod 777 {default_outputdir}")
 
     # If user has passed in an output_dir, create it if needed
     if not os.path.isdir(output_dir):
@@ -1005,7 +1005,7 @@ def submit_files_wexac(
 
     if output_dir is None:
         # Create output directory if it doesn't already exist
-        output_dir = create_output_dir_name(
+        output_dir = create_trig_dir_name(
             template_conf=template_conf, run_str=run_str)
 
     if queue_name is None:
@@ -1014,10 +1014,10 @@ def submit_files_wexac(
     if submit:
         # Sometimes even the default output dir does not exist
         # In these cases, create it
-        default_outputdir = utils.OUTPUT_DIR[run_str.lower()]
-        if not os.path.isdir(default_outputdir):
-            os.makedirs(default_outputdir)
-            os.system(f"chmod 777 {default_outputdir}")
+        # default_outputdir = utils.TRIG_DIR[run_str.lower()]
+        # if not os.path.isdir(default_outputdir):
+        #     os.makedirs(default_outputdir)
+        #     os.system(f"chmod 777 {default_outputdir}")
 
         # Create the output_dir if needed
         if not os.path.isdir(output_dir):

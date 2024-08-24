@@ -688,7 +688,7 @@ def get_dirs(dtype='trigs', vers_suffix='', source='BBH', runs=('O2',)):
 
 def get_root_dirs(dtype='trigs', runs=('O2',)):
     """Gets root directories by run, used since O3a is on scratch"""
-    if dtype.lower() == 'trigs':
+    if dtype.lower() in ['trigs', 'output']:
         root_dirs = [TRIG_DIR[run.lower()] for run in runs]
     elif dtype.lower() == 'cand':
         root_dirs = [CAND_DIR[run.lower()] for run in runs]

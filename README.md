@@ -22,6 +22,8 @@ The most up-to-date version of the notebooks can be found in [google drive](http
 
 ## Related references
 
+A software release paper is in prep. The following papers describe the main functionalities of the pipeline:
+
 * Template banks: [2310.15233](https://arxiv.org/abs/2310.15233)
 
 * Marginalization over HM SNR timeseries and non-Gaussian correction: [2405.17400](https://arxiv.org/abs/2405.17400), [2404.02435](https://arxiv.org/abs/2404.02435)
@@ -33,6 +35,7 @@ The most up-to-date version of the notebooks can be found in [google drive](http
 * ML methods for astrophysical prior and non-Gaussian correction: in-prep
 
 ## Dependencies
+
 * Required: numpy, scipy, matplotlib, scikit-learn, pandas, gsl, lal, lalsimulation,
   astropy, numba, multiprocess, [cogwheel](https://github.com/jroulet/cogwheel)
 
@@ -57,6 +60,6 @@ We also want to include the following new functionality soon:
 
 ## Acknowledgement
 
-We are grateful for the LVK collaboration for releasing their data and software publicly.
+We are grateful to the LVK collaboration for releasing their data and software publicly.
 
 This research has made use of data or software obtained from the Gravitational Wave Open Science Center (gw-openscience.org), a service of LIGO Laboratory, the LIGO Scientific Collaboration, the Virgo Collaboration, and KAGRA. LIGO Laboratory and Advanced LIGO are funded by the United States National Science Foundation (NSF) as well as the Science and Technology Facilities Council (STFC) of the United Kingdom, the Max-Planck-Society (MPS), and the State of Niedersachsen/Germany for support of the construction of Advanced LIGO and construction and operation of the GEO600 detector. Additional support for Advanced LIGO was provided by the Australian Research Council. Virgo is funded, through the European Gravitational Observatory (EGO), by the French Centre National de Recherche Scientifique (CNRS), the Italian Istituto Nazionale di Fisica Nucleare (INFN) and the Dutch Nikhef, with contributions by institutions from Belgium, Germany, Greece, Hungary, Ireland, Japan, Monaco, Poland, Portugal, Spain. KAGRA is supported by Ministry of Education, Culture, Sports, Science and Technology (MEXT), Japan Society for the Promotion of Science (JSPS) in Japan; National Research Foundation (NRF) and Ministry of Science and ICT (MSIT) in Korea; Academia Sinica (AS) and National Science and Technology Council (NSTC) in Taiwan.
