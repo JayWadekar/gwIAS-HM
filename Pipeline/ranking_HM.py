@@ -11,16 +11,18 @@ import dill as pickle
 from numba import njit, vectorize
 import template_bank_generator_HM as tg
 import params
-import scipy
+import scipy.optimize as optimize
 import scipy.stats as ss
 import h5py
 import ast
 from functools import partial
 import itertools
-import pathlib
+from pathlib import PosixPath
 
-try: import ranking as rank22
-except: pass
+try:
+    import ranking as rank22
+except:
+    pass
 
 # Note: For running this code, refer to the notebook
 # 5.Ranking_candidates.ipynb
@@ -34,6 +36,11 @@ LSC_EVENT_TIMES = utils.get_lsc_event_times()
 FOBJ_KEYS = ['background', 'zero-lag', 'LVC', 'injections']
 # Variable length datatype for timeseries
 VLEN_TIMESERIES = h5py.special_dtype(vlen=np.dtype(np.float64))
+
+# Default p_veto_real_event
+DEFAULT_P_VETO = lambda x: np.array([0.05] * len(x)) \
+    if isinstance(x[0], list) else 0.05
+
 
 # %% General functions
 def correct_snr2sumcut_safe(snr2sumcut_safe, snr2sumcut, snr2min, max_rhosq_limit):
@@ -234,8 +241,9 @@ def veto_subthreshold_top_cands(
             inds_unvetoed = \
                 inds_unvetoed[np.argsort(ranking_stat_list)[-num_redo:]]
 
-            rank_entry_list = copy.deepcopy([rank_obj.cands_preveto_max[cand_type][ind]
-                               for ind in inds_unvetoed])
+            rank_entry_list = copy.deepcopy(
+                [rank_obj.cands_preveto_max[cand_type][ind]
+                 for ind in inds_unvetoed])
             inds_entry_list = np.arange(len(inds_unvetoed))
             rank_entry_chunks = [rank_entry_list[i:i + ncores * 16] for i in
                                  range(len(rank_entry_list))[::ncores * 16]]
@@ -310,14 +318,14 @@ def veto_rank_entry_wrapper(args, veto_params):
     return veto_rank_entry(rank_entry, ind, **veto_params)
 
 def veto_rank_entry(
-        rank_entry, ind, triggers_dir=None, source='BBH', 
+        rank_entry, ind, triggers_dir=None, source='BBH',
         runs=('hm_o3a', 'hm_o3b'), min_veto_chi2=30,
           idx_veto_metadata=-2, detectors=('H1', 'L1'),
         veto_inds=None, rerun_coh_score=False, cs_instance=None,
         time_slide_jump=params.DEFAULT_TIMESLIDE_JUMP/1000.,
         coh_score_iterations=10, return_trig_obj_info=False):
     """
-    :param rank_entry: Entry of one of the arrays in scores_(non)vetoed_max
+    :param rank_entry: Entry of one of the arrays in cands_(pre/post)veto_max
     :param ind:
         Index into cands_preveto_max[cand_type], only used to debug which
         trigger failed
@@ -467,7 +475,7 @@ def veto_rank_entry(
 
     # If it failed the vetoes, or we're not rerunning the coherent score, return
     if not (bool(apply_vetos(new_veto_metadata, veto_inds))
-            or rerun_coh_score):
+            and rerun_coh_score):
         if return_trig_obj_info:
             return new_veto_metadata, rank_entry[0][0], *trig_objs, *pclists, \
                 veto_spacings
@@ -482,7 +490,8 @@ def veto_rank_entry(
 
     diff = new_coherent_score - rank_entry[0][0]
     if abs(diff) > 3:
-        print(f'New CS, increase/decrease: {new_coherent_score, diff}, for ind:{ind}')
+        print(f'New CS, increase/decrease: {new_coherent_score, diff}, '
+              f'for ind:{ind}')
 
     if return_trig_obj_info:
         return new_veto_metadata, new_coherent_score, *trig_objs, *pclists, \
@@ -515,7 +524,7 @@ def generate_downsampling_correction_fits(Z_gauss_complex=None, bank_id=None, tb
         supply them for all banks
     :param bank_id: The bank id of the bank to be used for the correction
                     (if bank_obj is not provided)
-    :param tbp_dir: The directory where the template banks are stored 
+    :param tbp_dir: The directory where the template banks are stored
                     (you could load temp bank params obj and use tbp.DIR)
     :param bank_obj: The bank object to be used for the correction
     :param n_SNRsq_bins: Number of bins to use for the histogram
@@ -547,31 +556,42 @@ def generate_downsampling_correction_fits(Z_gauss_complex=None, bank_id=None, tb
     Z_marg = bank_obj.marginalized_HM_scores(Z_gaussian, input_Z=True)
     Z_gaussian = np.linalg.norm(Z_gaussian, axis=1)**2
     Z_marg = Z_gaussian[Z_marg>SNRsq_cutoff]
-    val_gauss,bins,_ = ax.hist(Z_gaussian, bins=n_SNRsq_bins, histtype='step', cumulative=-1,log=True,
-                                label='Gaussian noise triggers');
-    val_marg,_,_ = ax.hist(Z_marg, bins=bins, histtype='step', cumulative=-1,log=True,
-                            label='Using marginalized HM statistic');
+    val_gauss, bins, _ = ax.hist(
+        Z_gaussian, bins=n_SNRsq_bins, histtype='step', cumulative=-1,log=True,
+        label='Gaussian noise triggers')
+    val_marg, _, _ = ax.hist(
+        Z_marg, bins=bins, histtype='step', cumulative=-1,log=True,
+        label='Using marginalized HM statistic')
     bincent = utils.bincent(bins)
-    if return_plot:
-      chisq_values = (1-ss.chi2.cdf(bincent,6))/(1-ss.chi2.cdf(bincent[10],6))*val_gauss[10]
-      ax.plot(bincent,chisq_values,
-            ls='--', label=r'$\chi^2$ (6 d.o.f)')
+
     rank_corr = 2*np.log(val_marg/val_gauss)
     rank_corr = np.nan_to_num(rank_corr, nan=0, posinf=0, neginf=0)
 
     # we require the correction to be zero at the last bin
     xarr = bincent - bincent[-1]
-    popt, pcov = scipy.optimize.curve_fit(parabolic_func, xarr, rank_corr, sigma=10/np.sqrt(val_marg))
+    popt, pcov = optimize.curve_fit(parabolic_func, xarr, rank_corr, sigma=10/np.sqrt(val_marg))
     a_fit = popt[0]
     # We fit a parabolic function to the difference between the two cumulative histograms
     rank_fn_difference = parabolic_func(xarr, a_fit)
+
     if return_plot:
-        ax.plot(bincent, chisq_values*np.exp(rank_fn_difference/2),ls='--',
-          label=r'$\chi^2 * \mathrm{Exp[}-\frac{1}{2}a_\mathrm{fit}(\rho^2-\rho^2_0)^2] $')
-        ax.set_xlabel(r'$\rho^2\ \ (=|\rho^\perp_{22}|^2+|\rho^\perp_{33}|^2+|\rho^\perp_{44}|^2)$');
-        ax.set_ylabel('Cumulative counts (right to left)');
+        chisq_values = \
+            ((1 - ss.chi2.cdf(bincent, 6)) /
+             (1 - ss.chi2.cdf(bincent[10], 6))) * val_gauss[10]
+        ax.plot(bincent, chisq_values,
+                ls='--', label=r'$\chi^2$ (6 d.o.f)')
+
+        ax.plot(
+            bincent,
+            chisq_values*np.exp(rank_fn_difference/2),
+            ls='--',
+            label=r'$\chi^2 * \mathrm{Exp[}-\frac{1}{2}a_\mathrm{fit}(\rho^2-\rho^2_0)^2] $')
+
+        ax.set_xlabel(r'$\rho^2\ \ (=|\rho^\perp_{22}|^2+|\rho^\perp_{33}|^2+|\rho^\perp_{44}|^2)$')
+        ax.set_ylabel('Cumulative counts (right to left)')
         ax.legend()
-    return([a_fit, bincent[-1]])
+
+    return [a_fit, bincent[-1]]
 
 @njit
 def apply_vetos(veto_metadata, inds_test):
@@ -722,9 +742,9 @@ def collect_all_subbanks(
 
 
 def add_to_bg_and_fg_dicts(
-        events, loc_id, bg_fg_dicts, extra_arrays=(), separate_injections=True,
-        separate_lsc_events=True, inj_ends=INJECTION_ENDS,
-        inj_starts=INJECTION_STARTS, eps=4, output_inj_mask=False):
+        events, loc_id, bg_fg_dicts, extra_arrays=(), separate_lsc_events=True,
+        separate_injections=True, inj_ends=INJECTION_ENDS,
+        inj_starts=INJECTION_STARTS, eps=4, output_mask_inj=False):
     """
     Populates events in lists of pure background, zero-lag candidates,
     LSC events, and injected events
@@ -736,11 +756,12 @@ def add_to_bg_and_fg_dicts(
     :param extra_arrays:
         If known, iterable with extra arrays for the events
         (timeseries, veto_metadata, coherent scores)
-    :param separate_injections: Flag to collect injections separately
     :param separate_lsc_events: Flag to collect lsc events separately
+    :param separate_injections: Flag to collect injections separately
     :param inj_ends: Array with end times of injections
     :param inj_starts: Array with start times of injections
     :param eps: Tolerance for checking if an event is close to an injection
+    :param output_mask_inj: Flag to output the mask of injected events
     :return:
         Adds an entry to each dict in bg_fg_dicts with key = loc_id, and
         item = events, or (events, timeseries) if we have timeseries
@@ -814,7 +835,7 @@ def add_to_bg_and_fg_dicts(
         add_or_vstack_to_dic(
             bg_fg_dicts[3], loc_id, injected_events,
             extra_arrays=extra_arrays_inj)
-        if output_inj_mask:
+        if output_mask_inj:
             return mask_inj
     return
 
@@ -846,7 +867,7 @@ def add_or_vstack_to_dic(dic, key, arr, extra_arrays=()):
 
 def combine_subbank_dict(dic_by_subbank):
     """
-    Populates a list of bg_fg_max
+    Populates a single list in bg_fg_max
     :param dic_by_subbank:
         Dict with keys = loc_ids, and values = list of arrays with each array
         containing a property of the events (an element of bg_fg_by_subbank)
@@ -872,11 +893,12 @@ def split_into_subbank_dicts(event_list, loc_id_index, skip_index=True):
     :param event_list:
         One of the lists in bg_fg_max/cands_preveto_max/cands_postveto_max
     :param loc_id_index: Index of the loc_id in each element of the list
-    :param skip_index: Flag to skip the loc_id in the resulting dictionary
+    :param skip_index: Flag to skip the loc_id in the resulting dictionary entry
     :return:
         Dict with keys = loc_ids, and values = list of lists with each list
         containing a property of the events other than loc_id.
-        This is like an entry of bg_fg_by_subbank
+        This is like an entry of bg_fg_by_subbank, but with the values being
+        lists of lists instead of lists of numpy arrays
     """
     if utils.checkempty(event_list):
         return dict()
@@ -945,20 +967,20 @@ def check_and_fix_bg_fg_lists(
         utils.close_hdf5()
         raise RuntimeError("fobj must be writeable")
 
-    for i, bg_fg_list in enumerate(bg_fg_max):
+    for i, bg_fg_max_list in enumerate(bg_fg_max):
         bg_fg_subbank_len = sum(
             [len(events_info) if isinstance(events_info, np.ndarray)
              else len(events_info[0]) for loc_id, events_info in
              bg_fg_by_subbank[i].items()])
 
-        if utils.checkempty(bg_fg_list):
+        if utils.checkempty(bg_fg_max_list):
             # Nothing to do here, unless the bg_fg_max was never populated
             if bg_fg_subbank_len > 0:
                 bg_fg_max[i] = combine_subbank_dict(bg_fg_by_subbank[i])
             continue
 
-        if (isinstance(bg_fg_list[-1][-1], (int, np.integer)) and
-                (len(bg_fg_list) == bg_fg_subbank_len)):
+        if (isinstance(bg_fg_max_list[-1][-1], (int, np.integer)) and
+                (len(bg_fg_max_list) == bg_fg_subbank_len)):
             # The int checks whether we saved the indices into bg_fg_by_subbank
             # We have the correct format and number of items
             continue
@@ -968,15 +990,16 @@ def check_and_fix_bg_fg_lists(
             raise RuntimeError(
                 "The number of events doesn't match, rerun the scoring routine")
 
-        # If we got here, we added some new injections
+        # If we got here, we added some new injections in bg_fg_max
         # The number of extra entries in bg_fg_by_subbank[i][loc_id]
-        # -2 for pclist and loc_id, omit the index to subbank if it exists
-        nextra = (len(bg_fg_list[0]) - 3) if \
-            isinstance(bg_fg_list[0][-1], (int, np.integer)) else \
-            (len(bg_fg_list[0]) - 2)
-        nextra_final = (len(bg_fg_list[-1]) - 3) if \
-            isinstance(bg_fg_list[-1][-1], (int, np.integer)) else \
-            (len(bg_fg_list[-1]) - 2)
+        # -2 for pclist and loc_id, omit the index to bg_fg_by_subbank if it
+        # exists
+        nextra = (len(bg_fg_max_list[0]) - 3) if \
+            isinstance(bg_fg_max_list[0][-1], (int, np.integer)) else \
+            (len(bg_fg_max_list[0]) - 2)
+        nextra_final = (len(bg_fg_max_list[-1]) - 3) if \
+            isinstance(bg_fg_max_list[-1][-1], (int, np.integer)) else \
+            (len(bg_fg_max_list[-1]) - 2)
 
         # Check some edge cases
         if nextra != len(extra_array_names):
@@ -989,7 +1012,7 @@ def check_and_fix_bg_fg_lists(
                 "We need a homogenous format, did you add a few injections " +
                 "without extra data?")
         if fobj is not None:
-            loc_id_old = tuple(bg_fg_list[0][1])
+            loc_id_old = tuple(bg_fg_max_list[0][1])
             if (('prior_terms' not in extra_array_names) and
                     (os.path.join(FOBJ_KEYS[i],
                                   str(loc_id_old),
@@ -997,13 +1020,14 @@ def check_and_fix_bg_fg_lists(
                 utils.close_hdf5()
                 raise RuntimeError(
                     "We stored the prior terms separately for existing " +
-                    "events, but not for the new injections you're trying " +
-                    "to add. Redo after storing everything together.")
+                    "events. The new injections you're adding don't have the " +
+                    "terms. Redo after storing everything together.")
 
-        # Reconstruct bg_fg_by_subbank[i]
+        # Reconstruct bg_fg_by_subbank[i] since we added to bg_fg_max[i]
         # First split by loc_id and collect different properties together
+        # Lists instead of numpy arrays for the properties
         dic_by_subbank = \
-            split_into_subbank_dicts(bg_fg_list, 1, skip_index=True)
+            split_into_subbank_dicts(bg_fg_max_list, 1, skip_index=True)
 
         # Handle an edge case of an edge case: the prior term might have
         # inconsistent shapes, since we previously computed all terms only for
@@ -1025,10 +1049,10 @@ def check_and_fix_bg_fg_lists(
                         np.asarray(events_infos[i]) for i in range(nextra + 1)]
             else:
                 # If possible, edit fobj in place and refer to its memory
-                outformat = type(bg_fg_list[0][0])
+                outformat = type(bg_fg_max_list[0][0])
                 event_struct = utils.write_hdf5_node(
                     fobj, [FOBJ_KEYS[i], str(loc_id), 'events'],
-                    np.array(events_infos[0]), overwrite=True, outformat=outformat)  #Ajit modification
+                    events_infos[0], overwrite=True, outformat=outformat)
                 if nextra == 0:
                     bg_fg_by_subbank[i][loc_id] = event_struct
                 else:
@@ -1043,8 +1067,12 @@ def check_and_fix_bg_fg_lists(
                             # array_to_write = events_infos[iextra + 1][...][()]
                             # array_to_write = [
                             #     [p.ravel() for p in t] for t in array_to_write]
+                            # Inefficient, but we don't have a better way since
+                            # bg_fg_by_subbank hasn't been populated with the
+                            # extra triggers yet
                             array_to_write = [
-                                [p.ravel() for p in t] for t in events_infos[iextra+1]]
+                                [p.ravel() for p in t] for t in
+                                events_infos[iextra + 1]]
                         else:
                             dtype = None
                             outformat_to_use = outformat
@@ -1055,7 +1083,7 @@ def check_and_fix_bg_fg_lists(
                                 [FOBJ_KEYS[i],
                                  str(loc_id),
                                  extra_array_names[iextra]],
-                                np.array(array_to_write),          ##Ajit modification
+                                array_to_write,
                                 dtype=dtype, overwrite=True,
                                 outformat=outformat_to_use))
 
@@ -1063,6 +1091,105 @@ def check_and_fix_bg_fg_lists(
         bg_fg_max[i] = combine_subbank_dict(bg_fg_by_subbank[i])
 
     return
+
+def print_top_cand_list(rank_objs, allbanksbg_shifted, runs_per_yr, run,
+                   LVK=True, IFAR_THRESHOLD_SAVE=0, IFAR_THRESHOLD_PRINT=0):
+    '''
+    Print the top candidates from the rank_objs
+    :param rank_objs: List of rank objects
+    :param allbanksbg_shifted: Shifted background scores
+    :param runs_per_yr: Number of runs per year
+    :param run: Name of the run
+    :param LVK: Boolean flag for printing cands
+        which do or do not overlap with known LVK events
+    :param IFAR_THRESHOLD_SAVE: Threshold (/bank/year) for saving candidates
+        in output dictionary
+    :param IFAR_THRESHOLD_PRINT: Threshold (/bank/year) for printing candidates
+    :return:
+        nested dictionary with properties of the top candidates in each bank
+    '''
+    cands_dict_by_bank = []
+    for i_multibank, rank_obj in enumerate(rank_objs):
+        rank_nonoverlap, rank_overlap, _ = rank_obj.compute_fars_coherent_score(
+                                        print_to_screen=False)
+        if LVK:
+            cand_rank = rank_overlap
+        else:
+            cand_rank = rank_nonoverlap
+        cand_ifar = rank_obj.Nsim / cand_rank
+        cand_inds = cand_ifar > (IFAR_THRESHOLD_SAVE/runs_per_yr)
+        cand_inds = np.arange(len(cand_inds))[cand_inds]
+        cand_inds = cand_inds[np.argsort(cand_rank[cand_inds])]
+        cand_ifar = cand_ifar[cand_inds]
+        cand_rank = cand_rank[cand_inds]
+        if LVK:
+            type_ind=2
+            prefix='GW'
+        else:
+            type_ind=1
+            prefix='GWC'
+        cand_full_info = [copy.deepcopy(
+            rank_obj.cands_postveto_max[type_ind][jj]) for jj in cand_inds]
+        cands_dict_by_bank.append({})
+        print('-'*72, f'\nBBH_{i_multibank} by rank:\n')
+        for jc, bcan in enumerate(cand_full_info):
+            # We pick index of detector with larger incoherent 
+            # snr2 (labelled by i_refdet) and
+            # use it for recording tgps, calpha, etc
+            i_refdet = np.argmax(bcan[1][:, 1])
+            tgps = bcan[1][i_refdet][0]
+            evname = utils.get_evname_from_tgps(tgps, prefix=prefix)
+            i_subbank = bcan[2][1]
+            config_fnames = utils.get_detector_fnames(tgps, i_multibank, i_subbank, run='hm_'+run)
+            if LVK:
+                score = rank_obj.rank_scores_lsc[cand_inds[jc]]
+                shifted_score = rank_obj.rank_scores_lsc_shifted[cand_inds[jc]]
+            else:
+                score = rank_obj.rank_scores_cand[cand_inds[jc]]
+                shifted_score = rank_obj.rank_scores_cand_shifted[cand_inds[jc]]
+            ifar_global = rank_obj.Nsim/(len(allbanksbg_shifted) - np.searchsorted(
+                            allbanksbg_shifted, shifted_score))*runs_per_yr
+            snr2_HL = bcan[1][:, 1];
+            snr2_HL_modes = np.array([bcan[1][:, 7]**2+bcan[1][:, 8]**2, bcan[1][:, 9]**2+bcan[1][:, 10]**2,
+                                    bcan[1][:, 11]**2+bcan[1][:, 12]**2])
+            # ENTRIES APPEARING IN THE FINAL CANDIDATE DICTIONARY
+            cands_dict_by_bank[-1][evname] = {
+                'i_refdet': i_refdet, 
+                'tgps': tgps,
+                'bank_id': (i_multibank, i_subbank),
+                'fnames': copy.deepcopy(config_fnames),
+                'ifar':cand_ifar[jc], 
+                'rank': cand_rank[jc],
+                'ifar_years': cand_ifar[jc] * runs_per_yr,
+                'ifar_global':ifar_global,
+                'snr2_H1': snr2_HL[0], 'snr2_L1': snr2_HL[1],
+                'snr2_HL_modes':snr2_HL_modes,
+                'cands_postveto_max_list': 2,
+                'cands_postveto_max_index': cand_inds[jc],
+                'rank_score': score,
+                'rank_score_shifted': shifted_score,
+                'trigger': bcan[1]}
+            tgl = trig.TriggerList.from_json(config_fname=config_fnames[i_refdet])
+            cands_dict_by_bank[-1][evname]['calpha'] = copy.deepcopy(bcan[1][i_refdet][tgl.c0_pos:])
+            pdic = dict(zip(['m1', 'm2', 's1z', 's2z', 'l1', 'l2'],
+                            tgl.templatebank.get_approximate_params(cands_dict_by_bank[-1][evname]['calpha'])))
+            pdic.update(dict(zip(['mchirp', 'eta', 'chieff', 'chia', 'ltil1', 'ltil2'],
+                                tgl.templatebank.transform_pars(
+                [pdic[k] for k in ['m1', 'm2', 's1z', 's2z', 'l1', 'l2']]))))
+            cands_dict_by_bank[-1][evname]['pdic'] = copy.deepcopy(pdic)
+            # Printing properties of best candidates
+            snr2_modes = np.round(snr2_HL_modes,1).astype('str')
+            if cand_ifar[jc] < IFAR_THRESHOLD_PRINT/runs_per_yr:
+                continue
+
+            print(f'[rank {cand_rank[jc]}]', evname, f"(tgps = {tgps:.3f}) from bank {cand_full_info[jc][2]}:\n",
+                f'IFAR/yr [bank, global] = {cand_ifar[jc]*runs_per_yr :.2f}, {ifar_global :.2f}\n', 
+                f'SNR^2[H,L] = [{snr2_HL[0]:.2f}, {snr2_HL[1]:.2f}], ',
+                f'SNR^2_modes = [{snr2_modes[0,0]} + {snr2_modes[1,0]} + {snr2_modes[2,0]}, '\
+                                f'{snr2_modes[0,1]} + {snr2_modes[1,1]} + {snr2_modes[2,1]}]\n',
+            'Template:',[f'{k} = {v:.2f}' for k, v in pdic.items()
+            if k not in ['l1', 'l2', 'ltil1', 'ltil2', 'chia', 'eta']], '\n\n')
+    return cands_dict_by_bank
 
 
 # %% Functions to maximize over banks
@@ -1101,6 +1228,10 @@ def maximize_using_saved_options(
     # Pop ranking_kwargs if it's there
     ranking_kwargs = maxopts.pop('ranking_kwargs', {})
 
+    # Preserve old maximization format if not provided
+    maxopts['global_maximization_format'] = \
+        maxopts.get('global_maximization_format', 'old')
+
     # Perform the maximization
     maximize_over_banks(list_of_rank_objs, **maxopts, **ranking_kwargs)
 
@@ -1109,9 +1240,10 @@ def maximize_over_banks(
         list_of_rank_objs, maxopts_filepath=None,
         incoherent_score_func=utils.incoherent_score,
         coherent_score_func=utils.coherent_score, mask_veto_criteria=None,
-        apply_veto_before_scoring=False, matching_point=None,
-        downsampling_correction=True, include_vetoed_triggers=False,
-        p_veto_real_event=(lambda x: 0.05, lambda x: 0.05), **ranking_kwargs):
+        apply_veto_before_scoring=False, global_maximization_format='new',
+        matching_point=None, downsampling_correction=True,
+        include_vetoed_triggers=False,
+        p_veto_real_event=(DEFAULT_P_VETO, DEFAULT_P_VETO), **ranking_kwargs):
     """
     Note that Seth vetoed the triggers before the bank assignment
     :param list_of_rank_objs: List of Rank objects
@@ -1135,6 +1267,12 @@ def maximize_over_banks(
         To reproduce O3a, i.e., 2201.02252, pass a mask with ones everywhere
         except at the entry corresponding to 'Secondary_peak_timeseries'
         False is the recommended input for all future catalogs
+    :param global_maximization_format:
+        'new' for the new format, 'old' for the old format
+        If 'new', we ensure that the maximization over banks/subbanks does not
+        depend on the ordering
+        'old' was the default for all published catalogs before 08-29-2024
+        'new' is the recommended input for all future catalogs
     :param downsampling_correction:
         If the triggers were downsampled compared to a chi-sq distribution
         because of an additional cut (e.g., based on whether the mode ratios
@@ -1147,8 +1285,9 @@ def maximize_over_banks(
     :param p_veto_real_event:
         Tuple with functions for the probability that a real event fails the
         vetoes in each detector, which in the most general case can be a
-        function of all properties of the trigger. They should accept a list of
-        entries of scores_(non)vetoed_max and yield an array of probabilities
+        function of all properties of the trigger. The functions should accept a
+        list of entries of scores_(non)vetoed_max and yield an array of
+        probabilities. Used only if include_vetoed_triggers is True
     :return:
         Considers all the banks in list_of_rank_objs together, assigns each
         trigger to a single (bank, subbank) pair and populates
@@ -1234,9 +1373,8 @@ def maximize_over_banks(
         _, pclist_info_lists, _ = rank_obj.compute_function_on_subbank_data(
             'events', 0, True, maximization_info_from_pclists,
             incoherent_score_func=incoherent_score_func)
-        _, cscores_lists, _ = \
-            rank_obj.compute_function_on_subbank_data(
-                'prior_terms', idx_prior_terms, True, coherent_score_func)
+        _, cscores_lists, _ = rank_obj.compute_function_on_subbank_data(
+            'prior_terms', idx_prior_terms, True, coherent_score_func)
         for i, (cands_preveto_max_list, pclist_info_list, cscores_list) in \
                 enumerate(zip(rank_obj.cands_preveto_max,
                               pclist_info_lists,
@@ -1253,12 +1391,14 @@ def maximize_over_banks(
     scores_nonvetoed_master_max = [[] for _ in range(nlists)]
     for i, scores_nonvetoed_list in enumerate(scores_nonvetoed_master):
         scores_nonvetoed_master_max[i] = maximize_over_groups(
-            scores_nonvetoed_list, incoherent_score_func=incoherent_score_func,
+            scores_nonvetoed_list,
+            incoherent_score_func=incoherent_score_func,
             coherent_score_func=coherent_score_func,
             n_templates_by_major_bank=n_templates_by_major_bank,
             bank_details_by_subbank=bank_details_by_subbank,
             template_prior_applied=list_of_rank_objs[0].template_prior_applied,
-            precomputed_details=True)
+            precomputed_details=True,
+            global_maximization_format=global_maximization_format)
 
     print(f"Splitting the maximized master list back to banks")
 
@@ -1291,6 +1431,9 @@ def maximize_over_banks(
             matching_point=matching_point,
             downsampling_correction=downsampling_correction,
             p_veto_real_event=p_veto_real_event, **ranking_kwargs)
+        # Save the bankbg object since it changed
+        if rank_obj.fobj is not None:
+            rank_obj.to_hdf5(overwrite=True)
 
     return
 
@@ -1317,7 +1460,8 @@ def maximize_over_groups(
         events_list, incoherent_score_func=utils.incoherent_score,
         coherent_score_func=utils.coherent_score,
         n_templates_by_major_bank=None, bank_details_by_subbank=None,
-        template_prior_applied=False, precomputed_details=False):
+        template_prior_applied=False, precomputed_details=False,
+        global_maximization_format='new'):
     """
     :param events_list:
         List of tuples with (pclists, (chirp_mass_id, subbank id)) if incoherent
@@ -1340,6 +1484,12 @@ def maximize_over_groups(
         we added an entry to each event info with t_H, t_L, ... (more if more
         detectors), incoherent score used for ranking, rho^2, and coherent score
         used for ranking
+    :param global_maximization_format:
+        'new' for the new format, 'old' for the old format
+        If 'new', we ensure that the maximization over banks/subbanks does not
+        depend on the ordering
+        'old' was the default for all published catalogs before 08-29-2024
+        'new' is the recommended input for all future catalogs
     :return: List in the same format, maximized over pair of 0.1 s groups
     """
     if n_templates_by_major_bank is None:
@@ -1351,17 +1501,17 @@ def maximize_over_groups(
         :return: 1. t_H
                  2. t_L
                  ... (more if more detectors)
-                 3. incoherent score used for ranking
-                 4. coherent score used for ranking
-                 5. any extra template penalties due to maximization over
-                    parameters that wasn't included in the coherent score
+                 3. Ranking statistic in the Gaussian case
+                    (sum of incoherent score, coherence term, and any extra
+                    template penalties due to maximization over parameters
+                    that weren't included in the coherence term)
         """
         # Consider the coherent score when deciding
         # The convention is that the coherent terms are the excess over
         # the Gaussian case, so they are written to exclude the rho_sq
         # and the power-law prefactors due to the integration over the DOF
         if precomputed_details:
-            *times_det, incoherent_score, rhosq, coherent_score = \
+            *times_det, incoherent_score, rhosq, coherence_term = \
                 event_info[-1]
         else:
             coherent_terms = event_info[0]
@@ -1370,7 +1520,7 @@ def maximize_over_groups(
             times_det = pclist[:, 0]
             incoherent_score = incoherent_score_func(pclist)
             rhosq = utils.incoherent_score(pclist)
-            coherent_score = coherent_score_func(coherent_terms)
+            coherence_term = coherent_score_func(coherent_terms)
 
         # TODO_Jay
         loc_id = event_info[2]
@@ -1382,38 +1532,81 @@ def maximize_over_groups(
             n_templates = n_templates_by_major_bank.get(loc_id[0], 1)
             template_penalty += -2 * np.log(n_templates * delta_c_alpha**n_dims)
 
-        return *times_det, incoherent_score, coherent_score, template_penalty
+        return *times_det, incoherent_score + coherence_term + template_penalty
 
-    event_dic = {}
-    for event in events_list:
-        *times_det_ev, incoherent_score_ev, coherent_score_ev, \
-            template_penalty_ev = get_event_details(event)
-        base_key = tuple(int(x / 0.1) for x in times_det_ev)
-        derived_keys = list(
-            itertools.product(*[(x - 1, x, x + 1) for x in base_key]))
-        merged_to_existing = False
-        for key in derived_keys:
-            dic_event = event_dic.get(key, None)
-            if dic_event is not None:
-                *times_det_dic_ev, incoherent_score_dic_ev, \
-                    coherent_score_dic_ev, template_penalty_dic_ev = \
-                    get_event_details(dic_event)
-                # Can incorrectly merge limiting timeslides in edge case?
-                if np.all(
+    if global_maximization_format.lower() == 'old':
+        event_dic = {}
+        for event in events_list:
+            *times_det_ev, ranking_stat_ev = get_event_details(event)
+            base_key = tuple(int(x / 0.1) for x in times_det_ev)
+            derived_keys = list(
+                itertools.product(*[(x - 1, x, x + 1) for x in base_key]))
+
+            merged_to_existing = False
+            for key in derived_keys:
+                dic_event = event_dic.get(key, None)
+                if dic_event is not None:
+                    *times_det_dic_ev, ranking_stat_dic_ev = \
+                        get_event_details(dic_event)
+                    # Can incorrectly merge limiting timeslides in edge case?
+                    if np.all(
+                            np.abs(
+                                np.asarray(times_det_ev) -
+                                np.asarray(times_det_dic_ev)) < 0.1):
+                        merged_to_existing = True
+                        # Condolences, see Eq. (B7) of 1904.07214
+                        if ranking_stat_ev > ranking_stat_dic_ev:
+                            event_dic[key] = event
+
+            if not merged_to_existing:
+                event_dic[base_key] = event
+
+    else:
+        # First load all events
+        global_event_dic = {}
+        for event in events_list:
+            event_details_ev = get_event_details(event)
+            *times_det_ev, ranking_stat_ev = event_details_ev
+            event_key = tuple(int(x / 0.1) for x in times_det_ev)
+            if event_key in global_event_dic:
+                global_event_dic[event_key][0].append(event)
+                global_event_dic[event_key][1].append(event_details_ev)
+            else:
+                global_event_dic[event_key] = [[event], [event_details_ev]]
+
+        # Make the event details entry a numpy array of t_H, ..., ranking stat
+        # for convenience
+        for key, val in global_event_dic.items():
+            val[1] = np.array(val[1])
+
+        # Maximize over the events, with the condition that an event makes it
+        # to the final list only if it doesn't have a better friend in its
+        # neighboring cells in the global_event_dic
+        event_dic = {}
+        for base_key, (events, event_details_evs) in global_event_dic.items():
+            best_event_idx = np.argmax(event_details_evs[:, -1])
+
+            event = events[best_event_idx]
+            times_det_ev = event_details_evs[best_event_idx, :-1]
+            ranking_stat_ev = event_details_evs[best_event_idx, -1]
+
+            derived_keys = list(
+                itertools.product(*[(x - 1, x, x + 1) for x in base_key]))
+
+            merged_to_existing = False
+            for derived_key in derived_keys:
+                if derived_key in global_event_dic:
+                    event_details_dic_evs = global_event_dic[derived_key][1]
+                    mask_close = np.all(
                         np.abs(
-                            np.asarray(times_det_ev) -
-                            np.asarray(times_det_dic_ev)) < 0.1):
-                    merged_to_existing = True
-                    # Condolences, see Eq. (B7) of 1904.07214
-                    if ((incoherent_score_ev +
-                         coherent_score_ev +
-                         template_penalty_ev) >
-                            (incoherent_score_dic_ev +
-                             coherent_score_dic_ev +
-                             template_penalty_dic_ev)):
-                        event_dic[key] = event
-        if not merged_to_existing:
-            event_dic[base_key] = event
+                            times_det_ev - event_details_dic_evs[:, :-1]) < 0.1,
+                        axis=1)
+                    if np.any(ranking_stat_ev < event_details_dic_evs[mask_close, -1]):
+                        merged_to_existing = True
+                        break
+
+            if not merged_to_existing:
+                event_dic[base_key] = event
 
     return list(event_dic.values())
 
@@ -1831,7 +2024,8 @@ class Rank(object):
         if empty_init:
             return
 
-        self.fobj = None   # To populate if loading from hdf5 file
+        self.fobj = None              # To populate if loading from a hdf5 file
+        self.hdf5_load_kwargs = None  # To populate if loading from a hdf5 file
         self.maxopts = []  # List of maximizations done on this object
 
         self.chirp_mass_id = chirp_mass_id
@@ -2061,7 +2255,7 @@ class Rank(object):
                     4:{0:'Veto_metadata_H',
                     1:'Veto_metadata_L'},
                     5:'Index into bg_by_subbank'}}
-        
+
         self.cands_preveto_max_keys = self.cands_postveto_max_keys
         self.cands_preveto_max_keys['Description'] = \
         'List containing both vetoed and non-vetoed candidates after '\
@@ -2076,7 +2270,7 @@ class Rank(object):
             'ind_1':'(bank_id, subbank_id)',
             'ind_2':{0:'n_cand x n_det x processedclist',
                      1:'n_cand x n_det x veto_metadata',
-                     2:{'n_cand x n_det x': 
+                     2:{'n_cand x n_det x':
                      {0:'Coherent score',
                         1:'-rho^2',
                         2:'2 log(1/median normfac^3)',
@@ -2171,38 +2365,73 @@ class Rank(object):
 
     def to_hdf5(self, path=None, overwrite=False):
         """
-        Saves the class to a hdf5 file. Ensure that you ran fix_bg_fg_lists if
-        you added extra injections (scoring does it automatically)
-        Note that saving to a new path doesn't replace what is in the instance.
-        If you want to use the new hdf5 file created, load it using from_hdf5
+        Saves the class to a hdf5 file. Ensure that you ran
+        check_and_fix_bg_fg_lists if you added extra injections (scoring does
+        it automatically)
+        Note that saving to a new path doesn't replace what is in the instance
+        unless path is None, if you want to use the new hdf5 file created, load
+        it using from_hdf5
         :param path:
-            Path to the hdf5 file to save to, can also be a File object.
+            Path to the hdf5 file to save to, can also be a HDF5 File object.
             If None, defaults to self.fobj
         :param overwrite: Flag to overwrite data in the file if it exists
         :return:
         """
         overwrite = utils.bool2int(overwrite)
+
+        modifying_existing = False
+        modifying_self = False
+        # Treat the case in which the user passed a File object
+        if isinstance(path, h5py.File):
+            # We'll create a new file below, so prepare for that
+            # (See note about memory usage)
+            modifying_existing = True
+            path_fname = path.filename
+
+            # Close if path isn't self.fobj's path
+            if ((self.fobj is not None) and
+                    (os.path.abspath(path.filename) ==
+                     os.path.abspath(self.fobj.filename))):
+                modifying_self = True
+            else:
+                path.close()
+
+            path = path_fname
+
+        # Henceforth, path is either a string or None
         if path is None:
             if self.fobj is not None:
-                f = self.fobj
-                toclose = False
+                path = self.fobj.filename
+                modifying_existing = True
+                modifying_self = True
             else:
-                utils.close_hdf5()
-                raise ValueError("No path or fobj given, cannot save!")
-        else:
-            # Note: Raises an error if the file is already open in readonly mode
-            path = utils.rm_suffix(path, suffix='.*', new_suffix='.hdf5')
-            if os.path.isfile(path):
-                if overwrite == 0:
-                    print(f"{path} already exists, pass overwrite=True to overwrite!")
-                    return
-                else:
-                    # We create a new file as there is an issue with loading from the 
-                    # previous file and then replacing datasets, somehow the memory
-                    # starts to blow up
-                    path = utils.rm_suffix(path, suffix='.*', new_suffix='.temporary_hdf5')
+                print(f"You need to pass a path or file object to save to")
+                return
 
-            f, toclose = utils.get_hdf5_file(path, 'a')
+        # Henceforth, path is a string
+        path = utils.rm_suffix(path, suffix='.*', new_suffix='.hdf5')
+
+        if os.path.isfile(path):
+            modifying_existing = True
+            if overwrite == 0:
+                print(f"{path} already exists, " +
+                      "pass overwrite=True to overwrite")
+                return
+
+            # If the user passed a filename corresponding to self.fobj
+            if ((self.fobj is not None) and
+                    (os.path.abspath(path) ==
+                     os.path.abspath(self.fobj.filename))):
+                modifying_self = True
+
+            # We'll create a new file as there is an issue with loading from the
+            # previous file and then replacing datasets; for some reason, the
+            # memory usage starts to blow up
+            path = utils.rm_suffix(
+                path, suffix='.*', new_suffix='.temporary.hdf5')
+
+        # Now toclose is always True
+        f, _ = utils.get_hdf5_file(path, 'a')
 
         extra_array_names = list(self.extra_array_names)
         idx_prior = extra_array_names.index('prior_terms') if \
@@ -2332,12 +2561,20 @@ class Rank(object):
         # Save the rest as attributes
         utils.save_dict_to_hdf5_attrs(f, self.__dict__, keys_to_skip, overwrite)
 
-        if toclose:
-            f.close()
-            os.chmod(path, 0o755)
-            if overwrite != 0:
-                shutil.move(path, utils.rm_suffix(path,
-                         suffix='.*', new_suffix='.hdf5'))
+        # Close the path
+        f.close()
+
+        if modifying_existing:
+            # Move the temporary file to replace the original file
+            original_path = utils.rm_suffix(
+                path, suffix='.temporary.hdf5', new_suffix='.hdf5')
+            shutil.move(path, original_path)
+            path = original_path
+            if modifying_self:
+                # Update everything in self to point to the new file
+                Rank.from_hdf5_static(self, path, **self.hdf5_load_kwargs)
+
+        os.chmod(path, 0o755)
 
         return
 
@@ -2357,6 +2594,37 @@ class Rank(object):
             If given, replace the outputdir with this path for the example trigs
         :return: Rank instance with self.fobj set to the hdf5 file
         """
+        # Set up the class structure
+        instance = cls(empty_init=True)
+
+        cls.from_hdf5_static(
+            instance, path, outformat=outformat, mode=mode,
+            load_example_trigs=load_example_trigs,
+            outputdir_to_use=outputdir_to_use)
+
+        return instance
+
+    @staticmethod
+    def from_hdf5_static(
+            instance, path, outformat=h5py.Dataset, mode='r',
+            load_example_trigs=True, outputdir_to_use=None):
+        """
+        Load attributes from a hdf5 file into an instance of the class
+        :param instance: Instance of the class to load the attributes into
+        :param path: Path to the hdf5 file, can also be a File object
+        :param outformat:
+            Format of the big data in the output (default is dataset, can also
+            be mmap). It can be a string or a type
+        :param mode: Mode to open the hdf5 file or mmap in
+        :param load_example_trigs: Boolean flag to load the example trigs
+        :param outputdir_to_use:
+            If given, replace the outputdir with this path for the example trigs
+        :return: BankBG instance with self.fobj set to the hdf5 file
+        """
+        hdf5_load_kwargs = locals().copy()
+        del hdf5_load_kwargs['instance']
+        del hdf5_load_kwargs['path']
+
         fobj, _ = utils.get_hdf5_file(path, mode=mode, raise_error=True)
 
         # Define format to use for the big data
@@ -2371,9 +2639,6 @@ class Rank(object):
         else:
             outformat = h5py.Dataset
 
-        # Set up the class structure
-        instance = cls(empty_init=True)
-
         # Load the attributes
         utils.load_dict_from_hdf5_attrs(fobj, outdict=instance.__dict__)
 
@@ -2384,7 +2649,7 @@ class Rank(object):
             if outputdir_to_use is not None:
                 for run, rundirs in enumerate(instance.outputdirs):
                     for subbank, outputdir in enumerate(rundirs):
-                        instance.outputdirs[run][subbank] = pathlib.PosixPath(
+                        instance.outputdirs[run][subbank] = PosixPath(
                             os.path.join(outputdir_to_use,
                                          os.path.basename(outputdir)))
             # Only the first run is needed to get the example trigs
@@ -2392,8 +2657,8 @@ class Rank(object):
                 os.path.join(outputdir, "*config.json"))[0]
                              for outputdir in instance.outputdirs[0]]
             example_trigs = [trig.TriggerList.from_json(
-                    example_json, load_trigs=False, do_ffts=False)
-                    for example_json in example_jsons]
+                example_json, load_trigs=False, do_ffts=False)
+                for example_json in example_jsons]
             instance.example_trigs = example_trigs
         else:
             instance.example_trigs = None
@@ -2552,15 +2817,19 @@ class Rank(object):
                 [list(x) for x in zip(*dic_by_subbank[loc_id])]
                 for loc_id in sorted(dic_by_subbank.keys())]
 
-        # Finally, load fobj into the class instance
+        # Finally, load fobj and load kwargs into the class instance
+        # First, close any existing fobj
+        if getattr(instance, 'fobj', None) is not None:
+            instance.fobj.close()
         instance.fobj = fobj
+        instance.hdf5_load_kwargs = hdf5_load_kwargs
 
-        return instance
+        return
 
     def create_coh_score_instance(
             self, cs_ver='JR', cs_table=None, example_trigs=None, **cs_kwargs):
         """
-        Removed from init to make saved rank objects independent of 
+        Removed from init to make saved rank objects independent of
         the cogwheel version
         :param cs_ver:
             Version of coherent score to use, can be 'JR', 'O2', 'mz'
@@ -2779,7 +3048,7 @@ class Rank(object):
             include_vetoed_triggers=False, safety_factor=4, matching_point=None,
             scoring_method="old", downsampling_correction=True,
             min_trigs_per_grp=500,
-            p_veto_real_event=(lambda x: 0.05, lambda x: 0.05),
+            p_veto_real_event=(DEFAULT_P_VETO, DEFAULT_P_VETO),
             **ranking_kwargs):
         """
         Compute quantities needed to assign scores to the triggers
@@ -3512,26 +3781,26 @@ class Rank(object):
             for ind, entry in enumerate(self.cands_postveto_max[1]):
                 prior_terms, event, *_ = entry
                 if self.Nsim/cand_rank_score[ind] > 0.1:
-                    print(f'ind: {ind}, Rank: {cand_rank_score[ind]}, '\
-                    f'IFAR: {round(self.Nsim / cand_rank_score[ind], 2)}, '\
-                    f'H1_time: {round(event[0, 0], 3)}, '\
-                    f'SNR^2: {round(event[0, 1], 2), round(event[1, 1], 2)}')
+                    print(f'ind: {ind}, Rank: {cand_rank_score[ind]}, ' +
+                          f'IFAR: {round(self.Nsim / cand_rank_score[ind], 2)}, ' +
+                          f'H1_time: {round(event[0, 0], 3)}, ' +
+                          f'SNR^2: {round(event[0, 1], 2), round(event[1, 1], 2)}')
             print()
             print('LSC events:')
             for ind, entry in enumerate(self.cands_postveto_max[2]):
                 prior_terms, event, *_ = entry
-                print(f'ind: {ind}, Rank: {lsc_rank_score[ind]}, '\
-                    f'IFAR: {round(self.Nsim / lsc_rank_score[ind], 2)}, '\
-                    f'H1_time: {round(event[0, 0], 3)}, '\
-                    f'SNR^2: {round(event[0, 1], 2), round(event[1, 1], 2)}')
+                print(f'ind: {ind}, Rank: {lsc_rank_score[ind]}, ' +
+                      f'IFAR: {round(self.Nsim / lsc_rank_score[ind], 2)}, ' +
+                      f'H1_time: {round(event[0, 0], 3)}, ' +
+                      f'SNR^2: {round(event[0, 1], 2), round(event[1, 1], 2)}')
             print()
             print('Injections:')
             for ind, entry in enumerate(self.cands_postveto_max[3]):
                 prior_terms, event, *_ = entry
-                print(f'ind: {ind}, Rank: {inj_rank_score[ind]}, '\
-                    f'IFAR: {round(self.Nsim / inj_rank_score[ind], 2)}, '\
-                    f'H1_time: {round(event[0, 0], 3)}, '\
-                    f'SNR^2: {round(event[0, 1], 2), round(event[1, 1], 2)}')
+                print(f'ind: {ind}, Rank: {inj_rank_score[ind]}, ' +
+                      f'IFAR: {round(self.Nsim / inj_rank_score[ind], 2)}, ' +
+                      f'H1_time: {round(event[0, 0], 3)}, ' +
+                      f'SNR^2: {round(event[0, 1], 2), round(event[1, 1], 2)}')
 
         return cand_rank_score, lsc_rank_score, inj_rank_score
 
@@ -3575,27 +3844,27 @@ class Rank(object):
             order = np.argsort(cand_rank_full)
             for ind in order:
                 prior_terms, event, *_ = self.cands_postveto_max[1][ind]
-                print(f'ind: {ind}, Rank: {cand_rank_full[ind]}, '\
-                    f'IFAR: {round(self.Nsim / cand_rank_full[ind], 2)}, '\
-                    f'H1_time: {round(event[0, 0], 3)}, '\
-                    f'SNR^2: {round(event[0, 1], 2), round(event[1, 1], 2)}')
+                print(f'ind: {ind}, Rank: {cand_rank_full[ind]}, ' +
+                      f'IFAR: {round(self.Nsim / cand_rank_full[ind], 2)}, ' +
+                      f'H1_time: {round(event[0, 0], 3)}, ' +
+                      f'SNR^2: {round(event[0, 1], 2), round(event[1, 1], 2)}')
 
             print()
             print('LSC events:')
             for ind, entry in enumerate(self.cands_postveto_max[2]):
                 prior_terms, event, *_ = entry
-                print(f'ind: {ind}, Rank: {lsc_rank_full[ind]}, '\
-                    f'IFAR: {round(self.Nsim / lsc_rank_full[ind], 2)}, '\
-                    f'H1_time: {round(event[0, 0], 3)}, '\
-                    f'SNR^2: {round(event[0, 1], 2), round(event[1, 1], 2)}')
+                print(f'ind: {ind}, Rank: {lsc_rank_full[ind]}, ' +
+                      f'IFAR: {round(self.Nsim / lsc_rank_full[ind], 2)}, ' +
+                      f'H1_time: {round(event[0, 0], 3)}, ' +
+                      f'SNR^2: {round(event[0, 1], 2), round(event[1, 1], 2)}')
             print()
             print('Injections:')
             for ind, entry in enumerate(self.cands_postveto_max[3]):
                 prior_terms, event, *_ = entry
-                print(f'ind: {ind}, Rank: {inj_rank_full[ind]}, '\
-                    f'IFAR: {round(self.Nsim / inj_rank_full[ind], 2)}, '\
-                    f'H1_time: {round(event[0, 0], 3)}, '\
-                    f'SNR^2: {round(event[0, 1], 2), round(event[1, 1], 2)}')
+                print(f'ind: {ind}, Rank: {inj_rank_full[ind]}, ' +
+                      f'IFAR: {round(self.Nsim / inj_rank_full[ind], 2)}, ' +
+                      f'H1_time: {round(event[0, 0], 3)}, ' +
+                      f'SNR^2: {round(event[0, 1], 2), round(event[1, 1], 2)}')
 
         return cand_rank_full, lsc_rank_full, inj_rank_full
 

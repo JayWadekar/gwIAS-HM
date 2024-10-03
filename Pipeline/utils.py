@@ -656,7 +656,7 @@ def get_dirs(dtype='trigs', vers_suffix='', source='BBH', runs=('O2',)):
     dictionaries with the outer dictionary having chirp mass ids as keys and
     the inner dictionary having subbank ids as keys and subdirectory names as
     values. Figures out the number of subbanks and chirp mass ids by itself
-    :param dtype: Type of directory (output, cand, stats)
+    :param dtype: Type of directory (trigs, cand, stats)
     :param vers_suffix:
         Suffix after the directory name if needed
         (e.g., for candidates version 4, we used 'cand4' in the past)
@@ -896,6 +896,17 @@ def get_json_fname(dir_name, epoch, detector, run="O3a"):
         return os.path.join(
             dir_name,
             f"{det}-{detector}_GWOSC_{run}_4KHZ_R1-{epoch}-4096_config.json")
+
+
+def get_dtype(data):
+    try:
+        return data.dtype
+    except AttributeError:
+        if hasattr(data, '__iter__') and (len(data) > 0) and \
+                not isinstance(data, str):
+            return get_dtype(data[0])
+        else:
+            return type(data)
 
 
 # %% Functions to deal with hdf5 files
@@ -1447,7 +1458,7 @@ def write_hdf5_node(
 
     g = read_hdf5_node(fobj, root, create=True)
     rval = None
-    dtype_to_check = dtype if dtype is not None else data.dtype
+    dtype_to_check = dtype if dtype is not None else get_dtype(data)
 
     if leaf in g.keys():
         if overwrite == 0:

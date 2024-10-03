@@ -17,6 +17,9 @@ import params
 try: import ML_modules
 except: pass
 
+# Default ASD function to be used
+DEFAULT_ASDF = utils.asdf_fromfile(utils.DEFAULT_ASDFILE_O3)
+
 """
 # Note: The input files for this code have been generated using the 
 # notebook 1.Template_banks.ipynb
@@ -2079,12 +2082,13 @@ class TemplateBank(object):
 
             if len(coeff_grid)> 200:
                 warnings.warn(
-                    "RAM needed for calpha wfs in the grid can be high (>50 GB).\n\
-                        Pass an appropriate calpha_search_radius to search\n\
-                        only within a certain radius of the best-fit calphas.")
+                '\n RAM needed for calpha wfs in the grid can be high (>50 GB).\n'
+                f'Searching only within radius={calpha_search_radius}\n'
+                'around the best-fit calphas.')
                 if len(coeffs_exact)>1:
-                    raise ValueError("The code with search_full_bank=True "\
-                            +"currently only works when a single wf is passed.")
+                    raise ValueError(
+                    'The code with search_full_bank=True\n'
+                    'currently only works when a single wf is passed.')
                     # TODO_Mark
                 mask = np.linalg.norm(
                     (coeff_grid - coeffs_exact[0])[:,:self.ndims],axis=-1)\

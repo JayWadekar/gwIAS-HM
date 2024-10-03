@@ -41,9 +41,9 @@ A software release paper is in prep. The following papers describe the main func
 * Required: numpy, scipy, matplotlib, scikit-learn, pandas, gsl, lal, lalsimulation,
   astropy, numba, multiprocess, [cogwheel](https://github.com/jroulet/cogwheel)
 
-* Optional but recommended: pytorch, [lightning](https://lightning.ai/docs/pytorch/stable/starter/installation.html), [nflows](https://pypi.org/project/nflows/), corner, jupyterlab (or package with collapsible notebook headings)
+* Optional but recommended: pytorch, [lightning](https://lightning.ai/docs/pytorch/stable/starter/installation.html), [nflows](https://pypi.org/project/nflows/), corner, jupyterlab
 
-If you are interested in more details about a particular module or want a particular functionality to be added, please feel free to email us. We'd be more than happy if you'd like to collaborate or contribute to the code and would be delighted to help if needed.
+If you are interested in more details about a particular module or want a particular functionality to be added, please feel free to email us. We'd be more than happy if you'd like to collaborate or contribute to the code, and we'd be delighted to help if needed.
 
 ## TODO
 
@@ -52,7 +52,7 @@ We also want to include the following new functionality soon:
 
 - [ ] Include an injection module to calculate the (*VT*) senstivity of the search.
 
-- [ ] Include Virgo and Kagra in addition to Hanford and Livingston.
+- [ ] Make the code general for passing arbitrary number of detectors, instead of the current version where only Hanford and Livingston are hardcoded.
 
 - [ ] Three modes (22,33,44) are hard-coded in a few places. The code should be general such that user can specify an arbitrary number of ell=m modes (and possibly ell!=m modes) or perform a quadrupole-only search for comparison.
 

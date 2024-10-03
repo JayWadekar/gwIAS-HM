@@ -585,6 +585,7 @@ def compute_coherent_scores_new(
                 zip(trig_objs, pclists, ts_center_cand):
             tdiff = t_center_cand - pclist[0]
             dt_left = params.DT_BOUND_TIMESERIES - tdiff
+            # TODO: Fix np.round to be consistent with how we do it in coincidence_HM.py
             # Round to the nearest time bin on the coarse grid
             # overcomes issues with np.ceil inside gen_triggers_local()
             dt_left = np.round(dt_left / trig_obj.dt) * trig_obj.dt
