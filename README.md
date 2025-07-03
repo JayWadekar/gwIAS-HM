@@ -4,12 +4,8 @@
 
 ![Instead of making templates with combination of harmonics, we matched-filter data with different harmonic templates separately](Pipeline/small_data/Mode_SNR_timeseries.jpg)
 
-To help you understand the pipeline, we have deployed a LLM-based chatbot (alternatively there is also the github copilot chat). You can try out our chatbot [here](https://jaywadekar-gwias.hf.space) or below.
-<iframe
-	src="https://jaywadekar-gwias.hf.space"
-	frameborder="0"
-	width="600"
-	height="700"></iframe>
+To help you understand the pipeline, we have deployed a LLM-based chatbot (alternatively there is also the github copilot chat). You can try out our chatbot here: [![Hugging Face](https://img.shields.io/badge/Launch-GWIAS-blue?logo=rocket)](https://huggingface.co/spaces/jaywadekar/gwIAS)
+
 
 ## Tutorial notebooks
 
