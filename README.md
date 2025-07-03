@@ -4,6 +4,13 @@
 
 ![Instead of making templates with combination of harmonics, we matched-filter data with different harmonic templates separately](Pipeline/small_data/Mode_SNR_timeseries.jpg)
 
+To help you understand the pipeline, we have deployed a LLM-based chatbot (alternatively there is also the github copilot chat). You can try out our chatbot [here](https://jaywadekar-gwias.hf.space) or below.
+<iframe
+	src="https://jaywadekar-gwias.hf.space"
+	frameborder="0"
+	width="600"
+	height="700"></iframe>
+
 ## Tutorial notebooks
 
 We have provided notebooks so that you can understand the working of the pipeline and reproduce the results on public LVK strain data.
@@ -32,7 +39,7 @@ A software release paper is in prep. The following papers describe the main func
 
 * New O3 GW candidates using our search: [2312.06631](https://arxiv.org/abs/2312.06631). Data products from the search and codes for specific modules are given [here](https://github.com/JayWadekar/GW_higher_harmonics_search).
 
-* Search for intermediate mass-ratio inspirals: in-prep
+* Search for intermediate mass-ratio inspirals: [2507.01083](https://arxiv.org/abs/2507.01083)
 
 * ML methods for astrophysical prior and non-Gaussian correction: in-prep
 
@@ -47,7 +54,7 @@ If you are interested in more details about a particular module or want a partic
 
 ## TODO
 
-We are working on cleaning up already included modules and adding more documentation.
+We are working on cleaning up already included modules and adding more documentation (apologies for the current state).
 We also want to include the following new functionality soon:
 
 - [ ] Include an injection module to calculate the (*VT*) senstivity of the search.
