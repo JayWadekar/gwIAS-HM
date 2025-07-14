@@ -241,6 +241,89 @@ class SearchCoherentScoreHMAS(BaseCoherentScoreHM):
         return dh_qo, hh_qo
 
 
+def initialize_cs_instance_new(
+        list_of_trig_objects, detectors=('H1', 'L1'), seed=0,
+        n_qmc_sequences=1, log2n_qmc=params.LOG2N_QMC, nphi=params.NPHI,
+        max_log2n_qmc=params.MAX_LOG2N_QMC,
+        min_n_effective=params.MIN_N_EFFECTIVE, **cs_kwargs):
+    """
+    Initialize coherent score instance for N detectors.
+    
+    :param list_of_trig_objects: List of trigger objects, one per detector
+    :param detectors: List of detector names
+    :param seed: Random seed
+    :param n_qmc_sequences: Number of QMC sequences
+    :param log2n_qmc: Log2 of QMC points
+    :param nphi: Number of phi points
+    :param max_log2n_qmc: Maximum log2 QMC points
+    :param min_n_effective: Minimum effective sample size
+    :param cs_kwargs: Additional coherent score arguments
+    :return: Initialized coherent score instance
+    """
+    detectors = tuple(sorted(detectors))
+    
+    # Create network string for N detectors
+    network_string = "".join([d[0] for d in detectors])
+    
+    cs_instance = SearchCoherentScoreHMAS(
+                    sky_dict=cogwheel.likelihood.marginalization.SkyDictionary(
+                            network_string), seed=seed,
+                    log2n_qmc=log2n_qmc, nphi=nphi, max_log2n_qmc=max_log2n_qmc,
+                    n_qmc_sequences=n_qmc_sequences, **cs_kwargs)
+    cs_instance.min_n_effective = min_n_effective
+    
+    # Calculating reference distance to SNR=1 template and rescaling by normfac
+    cs_instance.dist_factor_ref = cs_instance.lookup_table.d_luminosity_max\
+        / cs_instance.lookup_table.REFERENCE_DISTANCE
+    
+    # Set up mode ratios for all detectors in the network
+    if list_of_trig_objects:
+        # Use first trigger object as reference for subbank parameters
+        trig_ref = list_of_trig_objects[0]
+        cs_instance.mode_ratios_qm_subbank = \
+            trig_ref.mode_ratios_qm_subbank
+        cs_instance.mode_ratios_qm_subbank_inds = \
+            trig_ref.mode_ratios_qm_subbank_inds
+        cs_instance.mode_ratios_qm_subbank_w = \
+            trig_ref.mode_ratios_qm_subbank_w
+        cs_instance.mode_ratios_qm_subbank_p = \
+            trig_ref.mode_ratios_qm_subbank_p
+        cs_instance.mode_ratios_qm_subbank_w_sum = \
+            trig_ref.mode_ratios_qm_subbank_w_sum
+        cs_instance.mode_ratios_qm_subbank_p_sum = \
+            trig_ref.mode_ratios_qm_subbank_p_sum
+        cs_instance.mode_ratios_qm_subbank_inds_split = \
+            trig_ref.mode_ratios_qm_subbank_inds_split
+        cs_instance.mode_ratios_qm_subbank_w_split = \
+            trig_ref.mode_ratios_qm_subbank_w_split
+        cs_instance.mode_ratios_qm_subbank_p_split = \
+            trig_ref.mode_ratios_qm_subbank_p_split
+        cs_instance.mode_ratios_qm_subbank_w_split_sum = \
+            trig_ref.mode_ratios_qm_subbank_w_split_sum
+        cs_instance.mode_ratios_qm_subbank_p_split_sum = \
+            trig_ref.mode_ratios_qm_subbank_p_split_sum
+        cs_instance.mode_ratios_qm_subbank_logw = \
+            trig_ref.mode_ratios_qm_subbank_logw
+        cs_instance.mode_ratios_qm_subbank_logp = \
+            trig_ref.mode_ratios_qm_subbank_logp
+        cs_instance.mode_ratios_qm_subbank_logw_split = \
+            trig_ref.mode_ratios_qm_subbank_logw_split
+        cs_instance.mode_ratios_qm_subbank_logp_split = \
+            trig_ref.mode_ratios_qm_subbank_logp_split
+        
+        # Set up detector-specific normalizations
+        cs_instance.norm_det_normalizations = []
+        for trig_obj in list_of_trig_objects:
+            try:
+                cs_instance.norm_det_normalizations.append(
+                    trig_obj.norm_det_normalization)
+            except AttributeError:
+                # Default normalization if not available
+                cs_instance.norm_det_normalizations.append(1.0)
+    
+    return cs_instance
+
+
 def initialize_cs_instance(
         trig1=None, trig2=None, detectors=('H1', 'L1'), seed=0,
         n_qmc_sequences=1, log2n_qmc=params.LOG2N_QMC, nphi=params.NPHI,
