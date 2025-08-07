@@ -1,6 +1,6 @@
 # `IAS-HM`
 
-`IAS-HM` is a new search pipeline including higher modes (HM) or harmonics in the template bank waveforms. Nearly all of the current search pipelines do not include HM in their template banks as the computational cost increases significantly and the search can lose sensitivity if the new d.o.f are not added properly. We overcome these challenges using a new **mode-by-mode** filtering approach in our pipeline.
+`IAS-HM` is a new search pipeline including higher modes (HM) or harmonics in the template bank waveforms. Nearly all of the current search pipelines do not include HM in their template banks as the computational cost increases significantly and the search can lose sensitivity if the new degrees of freedom are not added properly. We overcome these challenges using a new **mode-by-mode** filtering approach in our pipeline.
 
 ![Instead of making templates with combination of harmonics, we matched-filter data with different harmonic templates separately](Pipeline/small_data/Mode_SNR_timeseries.jpg)
 
