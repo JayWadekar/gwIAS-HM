@@ -580,6 +580,21 @@ def get_left_right_fnames(fname, return_only_existing=True):
     return left_fname, right_fname
 
 
+def get_epoch_from_filename(filename):
+    """
+    Extract epoch from filename.
+    Assumes filename format contains epoch information.
+    """
+    import re
+    # Extract epoch from filename - this is a simplified implementation
+    # The actual format depends on your filename convention
+    basename = os.path.basename(filename)
+    match = re.search(r'(\d+)', basename)
+    if match:
+        return int(match.group(1))
+    return None
+
+
 def get_coincident_json_filelist(
         dir_name, enumerated_epochs=None, n_epochs=None, run=None,
         det1="H1", det2="L1"):
