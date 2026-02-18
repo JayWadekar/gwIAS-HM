@@ -1,0 +1,90 @@
+/* Visual cue inspired by HW2 docs accent color */
+:root {
+  --gwias-accent: #c2185b;
+  --pst-font-family-base: "Source Sans 3", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+  --pst-font-family-heading: "Source Sans 3", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+  --pst-font-family-monospace: "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
+}
+
+.sig-name, .sig-name.descname {
+  color: var(--gwias-accent);
+  font-weight: 600;
+}
+
+html {
+  font-size: 15px;
+}
+
+.bd-content h1, .bd-content h2, .bd-content h3, .bd-content h4 {
+  font-weight: 600;
+  letter-spacing: 0.005em;
+}
+
+.bd-content p, .bd-content li {
+  line-height: 1.5;
+}
+
+a.reference.internal code {
+  font-weight: 600;
+}
+
+table.docutils td code {
+  font-weight: 600;
+}
+
+/* Make sidebar tree toggles actually hide/show child levels. */
+.bd-sidebar .bd-sidenav li.has-children > ul {
+  display: none !important;
+}
+
+/* Keep first API level visible by default. */
+.bd-sidebar .bd-sidenav li.toctree-l1.has-children > ul {
+  display: block !important;
+}
+
+/* Expand nodes whose toggle is open. */
+.bd-sidebar .bd-sidenav li.has-children:has(> details[open]) > ul {
+  display: block !important;
+}
+
+/* Sidebar tree hover style: subtle rounded background instead of underline. */
+.bd-sidebar .bd-sidenav a.reference.internal {
+  border-radius: 0.35rem;
+  display: inline-block;
+  padding: 0.08rem 0.35rem;
+  text-decoration: none !important;
+  transition: background-color 120ms ease-in-out;
+}
+
+.bd-sidebar .bd-sidenav a.reference.internal:hover,
+.bd-sidebar .bd-sidenav a.reference.internal:focus-visible {
+  background-color: color-mix(in srgb, var(--pst-color-accent) 14%, transparent);
+  text-decoration: none !important;
+}
+
+.bd-sidebar .bd-sidenav details > summary {
+  border-radius: 0.35rem;
+  cursor: pointer;
+  margin-left: 0.15rem;
+  padding: 0.05rem 0.2rem;
+  transition: background-color 120ms ease-in-out;
+}
+
+.bd-sidebar .bd-sidenav details > summary:hover,
+.bd-sidebar .bd-sidenav details > summary:focus-visible {
+  background-color: color-mix(in srgb, var(--pst-color-accent) 14%, transparent);
+}
+
+/* Apply the same subtle hover language to in-page links (excluding header anchors). */
+.bd-content a.reference:not(.headerlink) {
+  border-radius: 0.3rem;
+  padding: 0 0.16rem;
+  text-decoration: none !important;
+  transition: background-color 120ms ease-in-out;
+}
+
+.bd-content a.reference:not(.headerlink):hover,
+.bd-content a.reference:not(.headerlink):focus-visible {
+  background-color: color-mix(in srgb, var(--pst-color-accent) 12%, transparent);
+  text-decoration: none !important;
+}
