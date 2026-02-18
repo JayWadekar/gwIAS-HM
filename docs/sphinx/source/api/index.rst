@@ -12,5 +12,4 @@ The API is organized as a tree with clickable levels:
    :maxdepth: 2
 
    tree/index
-   pipeline_modules
    full_api
