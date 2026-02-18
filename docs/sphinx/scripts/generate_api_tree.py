@@ -408,6 +408,7 @@ def render_callable_page(path: Path, title: str, summary: str, signature: str, p
     else:
         rows.append("This callable has no explicit input variables.")
 
+    rows_block = "\n".join(rows)
     content = f"""
 {title}
 {'=' * len(title)}
@@ -426,7 +427,7 @@ Signature
 
    def {signature}
 
-{"\n".join(rows)}
+{rows_block}
 
 Output variables
 ----------------
