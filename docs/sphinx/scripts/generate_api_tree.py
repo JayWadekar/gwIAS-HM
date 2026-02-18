@@ -505,6 +505,8 @@ def render_module_page(module: ModuleInfo) -> None:
 
     module_children = "\n".join(child_docs) if child_docs else "   "
 
+    function_rows_block = "\n".join(function_rows)
+    class_rows_block = "\n".join(class_rows)
     content = f"""
 {module.name}
 {'=' * len(module.name)}
@@ -521,9 +523,9 @@ Module summary
 
 {clean(module.summary)}
 
-{"\n".join(function_rows)}
+{function_rows_block}
 
-{"\n".join(class_rows)}
+{class_rows_block}
 
 .. toctree::
    :hidden:
@@ -565,6 +567,7 @@ def render_class_page(module_name: str, cls: ClassInfo) -> None:
     )
     class_children = method_docs if method_docs else "   "
 
+    method_rows_block = "\n".join(method_rows)
     content = f"""
 {class_title}
 {'=' * len(class_title)}
@@ -576,7 +579,7 @@ Summary
 
 {clean(cls.summary)}
 
-{"\n".join(method_rows)}
+{method_rows_block}
 
 Class docstring
 ---------------
@@ -611,6 +614,7 @@ def render_tree_index(modules: List[ModuleInfo]) -> None:
 
     module_docs = "\n".join(f"   modules/{module.name}" for module in modules)
 
+    rows_block = "\n".join(rows)
     content = f"""
 API Tree
 ========
@@ -622,7 +626,7 @@ This API is organized as a navigation tree:
 3. Per-class tables for methods
 4. Per-callable pages with signature, input variables, and output variables
 
-{"\n".join(rows)}
+{rows_block}
 
 .. toctree::
    :hidden:
