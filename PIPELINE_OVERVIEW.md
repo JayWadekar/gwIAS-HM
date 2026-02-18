@@ -13,8 +13,8 @@ That is why the pipeline is built around:
 - a staged scoring/ranking system that controls false alarms in non-Gaussian detector noise.
 
 Primary implementation roots:
-- `/Users/tejaswi/Work/gwIAS-HM/Pipeline/`
-- `/Users/tejaswi/Work/gwIAS-HM/Tutorial_notebooks/`
+- [`Pipeline/`](Pipeline/)
+- [`Tutorial_notebooks/`](Tutorial_notebooks/)
 
 ## 2. Three-Engine Mental Model
 Think of the search as three engines:
@@ -26,11 +26,11 @@ Think of the search as three engines:
 
 ### 3.1 Template-bank construction and representation
 Implemented mainly in:
-- `/Users/tejaswi/Work/gwIAS-HM/Pipeline/template_bank_generator_HM.py`
+- [`Pipeline/template_bank_generator_HM.py`](Pipeline/template_bank_generator_HM.py)
 
 Supporting config/notebooks:
-- `/Users/tejaswi/Work/gwIAS-HM/Pipeline/template_bank_params_O3a_HM.py`
-- `/Users/tejaswi/Work/gwIAS-HM/Tutorial_notebooks/1.Template_banks.ipynb`
+- [`Pipeline/template_bank_params_O3a_HM.py`](Pipeline/template_bank_params_O3a_HM.py)
+- [`Tutorial_notebooks/1.Template_banks.ipynb`](Tutorial_notebooks/1.Template_banks.ipynb)
 
 Key behavior:
 - bank is represented in reduced coordinates (`calpha`) rather than raw physical parameters during filtering,
@@ -42,8 +42,8 @@ Why:
 
 ### 3.2 Data ingestion and preprocessing
 Implemented mainly in:
-- `/Users/tejaswi/Work/gwIAS-HM/Pipeline/data_operations.py`
-- `/Users/tejaswi/Work/gwIAS-HM/Pipeline/readligo.py`
+- [`Pipeline/data_operations.py`](Pipeline/data_operations.py)
+- [`Pipeline/readligo.py`](Pipeline/readligo.py)
 
 Steps include:
 - PSD estimation,
@@ -57,11 +57,11 @@ Why:
 
 ### 3.3 Single-detector filtering and trigger generation
 Main class:
-- `TriggerList` in `/Users/tejaswi/Work/gwIAS-HM/Pipeline/triggers_single_detector_HM.py`
+- `TriggerList` in [`Pipeline/triggers_single_detector_HM.py`](Pipeline/triggers_single_detector_HM.py)
 
 Entrypoints:
-- `/Users/tejaswi/Work/gwIAS-HM/Pipeline/gw_detect_file.py` (CLI)
-- `/Users/tejaswi/Work/gwIAS-HM/Pipeline/triggering_on_cluster.py` (cluster launcher)
+- [`Pipeline/gw_detect_file.py`](Pipeline/gw_detect_file.py) (CLI)
+- [`Pipeline/triggering_on_cluster.py`](Pipeline/triggering_on_cluster.py) (cluster launcher)
 
 Core behavior:
 - enumerate templates over `calpha` grid,
@@ -80,7 +80,7 @@ HM-specific note:
 
 ### 3.4 Coincidence building and veto optimization
 Main module:
-- `/Users/tejaswi/Work/gwIAS-HM/Pipeline/coincidence_HM.py`
+- [`Pipeline/coincidence_HM.py`](Pipeline/coincidence_HM.py)
 
 What it does:
 - load per-detector trigger files by epoch,
@@ -97,10 +97,10 @@ Why:
 
 ### 3.5 Coherent score computation
 Newer HM implementation:
-- `/Users/tejaswi/Work/gwIAS-HM/Pipeline/coherent_score_hm_search.py`
+- [`Pipeline/coherent_score_hm_search.py`](Pipeline/coherent_score_hm_search.py)
 
 Older fast/legacy structure:
-- `/Users/tejaswi/Work/gwIAS-HM/Pipeline/coherent_score_mz_fast.py`
+- [`Pipeline/coherent_score_mz_fast.py`](Pipeline/coherent_score_mz_fast.py)
 
 Concept:
 - use local detector timeseries around each candidate,
@@ -112,7 +112,7 @@ Why:
 
 ### 3.6 Ranking and significance estimation
 Main module:
-- `/Users/tejaswi/Work/gwIAS-HM/Pipeline/ranking_HM.py`
+- [`Pipeline/ranking_HM.py`](Pipeline/ranking_HM.py)
 
 It:
 - collects subbank outputs,
@@ -124,22 +124,22 @@ It:
 - produces ranked candidate lists and IFAR-like significance outputs.
 
 Prior-handling implementations used at this stage include:
-- `/Users/tejaswi/Work/gwIAS-HM/Pipeline/ML_modules.py`
-- `/Users/tejaswi/Work/gwIAS-HM/Tutorial_notebooks/2.Astrophysical_prior.ipynb`
+- [`Pipeline/ML_modules.py`](Pipeline/ML_modules.py)
+- [`Tutorial_notebooks/2.Astrophysical_prior.ipynb`](Tutorial_notebooks/2.Astrophysical_prior.ipynb)
 
 Why:
 - final scientific products are ranked events with defensible background-calibrated significance.
 
 ## 4. New-Collaborator Reading Order
-1. `/Users/tejaswi/Work/gwIAS-HM/README.md`
-2. `/Users/tejaswi/Work/gwIAS-HM/Pipeline/triggers_single_detector_HM.py`
-3. `/Users/tejaswi/Work/gwIAS-HM/Pipeline/coincidence_HM.py`
-4. `/Users/tejaswi/Work/gwIAS-HM/Pipeline/ranking_HM.py`
-5. `/Users/tejaswi/Work/gwIAS-HM/Pipeline/template_bank_generator_HM.py`
+1. [`README.md`](README.md)
+2. [`Pipeline/triggers_single_detector_HM.py`](Pipeline/triggers_single_detector_HM.py)
+3. [`Pipeline/coincidence_HM.py`](Pipeline/coincidence_HM.py)
+4. [`Pipeline/ranking_HM.py`](Pipeline/ranking_HM.py)
+5. [`Pipeline/template_bank_generator_HM.py`](Pipeline/template_bank_generator_HM.py)
 6. notebooks:
-   - `/Users/tejaswi/Work/gwIAS-HM/Tutorial_notebooks/1.Template_banks.ipynb`
-   - `/Users/tejaswi/Work/gwIAS-HM/Tutorial_notebooks/3.Trig_Coin_test_with_injection.ipynb`
-   - `/Users/tejaswi/Work/gwIAS-HM/Tutorial_notebooks/5.Ranking_candidates.ipynb`
+   - [`Tutorial_notebooks/1.Template_banks.ipynb`](Tutorial_notebooks/1.Template_banks.ipynb)
+   - [`Tutorial_notebooks/3.Trig_Coin_test_with_injection.ipynb`](Tutorial_notebooks/3.Trig_Coin_test_with_injection.ipynb)
+   - [`Tutorial_notebooks/5.Ranking_candidates.ipynb`](Tutorial_notebooks/5.Ranking_candidates.ipynb)
 
 ## 5. One-Paragraph Summary
 This repository is an HM-capable GW search pipeline that uses compressed template coordinates and mode-by-mode filtering to make HM searches computationally practical, then uses coincidence, vetoing, coherent marginalization, and bank-aware ranking to convert raw triggers into statistically ranked candidate events.
