@@ -10,7 +10,20 @@ This codebase is a gravitational-wave search pipeline optimized for compact bina
 
 The practical goal is to recover HM sensitivity gains while keeping the search computationally tractable in real detector noise.
 
-2. Core Architecture
+2. Statistical Detection Principle
+----------------------------------
+
+The ranking statistic is motivated by a Neyman-Pearson likelihood-ratio viewpoint:
+
+- For simple hypotheses, Neyman-Pearson gives the optimal likelihood-ratio detection statistic
+- For composite hypotheses (unknown source parameters), the practical target is an evidence-like statistic based on marginalizing over model parameters
+
+Current implementation caveat:
+
+- Extrinsic-parameter marginalization is implemented explicitly in coherent-score modules
+- Intrinsic-parameter marginalization is currently approximate/semi-marginalized in the search path, consistent with the Appendix discussion in `arXiv:1904.07214 <https://arxiv.org/abs/1904.07214>`_
+
+3. Core Architecture
 --------------------
 
 The pipeline is organized into three coupled engines:
@@ -19,7 +32,7 @@ The pipeline is organized into three coupled engines:
 2. Multi-detector coincidence and coherence
 3. Global ranking and significance estimation
 
-3. Pipeline Workflow
+4. Pipeline Workflow
 --------------------
 
 Stage A: Template banks and priors
@@ -65,12 +78,13 @@ Stage D: Ranking and candidate significance
 - Aggregate candidates across banks/subbanks/runs
 - Combine incoherent and coherent terms with prior/sensitivity corrections
 - Produce ranked outputs for scientific follow-up
+- Operationally realize the composite-hypothesis evidence-style logic using available coherent/prior terms and approximation choices
 
 Primary module:
 
 - ``Pipeline/ranking_HM.py``
 
-4. Why This Structure Exists
+5. Why This Structure Exists
 ----------------------------
 
 Detector noise is non-stationary and non-Gaussian. The pipeline therefore separates:
@@ -81,7 +95,7 @@ Detector noise is non-stationary and non-Gaussian. The pipeline therefore separa
 
 This decomposition keeps sensitivity high while controlling false alarms and runtime cost.
 
-5. What to Read Next
+6. What to Read Next
 --------------------
 
 1. ``README.md``

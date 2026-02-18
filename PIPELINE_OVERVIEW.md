@@ -16,13 +16,23 @@ Primary implementation roots:
 - [`Pipeline/`](Pipeline/)
 - [`Tutorial_notebooks/`](Tutorial_notebooks/)
 
-## 2. Three-Engine Mental Model
+## 2. Statistical Detection Principle
+High-level statistical strategy:
+- detection is framed in Neyman-Pearson terms (likelihood-ratio style statistic),
+- strict Neyman-Pearson optimality is for simple-vs-simple hypotheses,
+- in the composite case (unknown source parameters), the intended extension is to marginalize over model parameters, i.e. use an evidence-like statistic.
+
+Current implementation caveat:
+- extrinsic-parameter marginalization is treated explicitly in coherent-score modules,
+- intrinsic-parameter marginalization is not yet fully rigorous end-to-end; in current practice it is handled in an approximate/semi-marginalized way consistent with the Appendix discussion in [arXiv:1904.07214](https://arxiv.org/abs/1904.07214).
+
+## 3. Three-Engine Mental Model
 Think of the search as three engines:
 1. single-detector trigger production,
 2. multi-detector coincidence/coherent consistency,
 3. global ranking and significance assignment.
 
-## 3. Stage-by-Stage Narrative
+## 4. Stage-by-Stage Narrative
 
 ### 3.1 Template-bank construction and representation
 Implemented mainly in:
@@ -128,9 +138,9 @@ Prior-handling implementations used at this stage include:
 - [`Tutorial_notebooks/2.Astrophysical_prior.ipynb`](Tutorial_notebooks/2.Astrophysical_prior.ipynb)
 
 Why:
-- final scientific products are ranked events with defensible background-calibrated significance.
+- final scientific products are ranked events with defensible background-calibrated significance, and this is where the composite-hypothesis evidence-style logic is operationalized in practice.
 
-## 4. New-Collaborator Reading Order
+## 5. New-Collaborator Reading Order
 1. [`README.md`](README.md)
 2. [`Pipeline/triggers_single_detector_HM.py`](Pipeline/triggers_single_detector_HM.py)
 3. [`Pipeline/coincidence_HM.py`](Pipeline/coincidence_HM.py)
@@ -141,5 +151,5 @@ Why:
    - [`Tutorial_notebooks/3.Trig_Coin_test_with_injection.ipynb`](Tutorial_notebooks/3.Trig_Coin_test_with_injection.ipynb)
    - [`Tutorial_notebooks/5.Ranking_candidates.ipynb`](Tutorial_notebooks/5.Ranking_candidates.ipynb)
 
-## 5. One-Paragraph Summary
+## 6. One-Paragraph Summary
 This repository is an HM-capable GW search pipeline that uses compressed template coordinates and mode-by-mode filtering to make HM searches computationally practical, then uses coincidence, vetoing, coherent marginalization, and bank-aware ranking to convert raw triggers into statistically ranked candidate events.

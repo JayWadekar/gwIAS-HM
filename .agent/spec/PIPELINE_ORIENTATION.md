@@ -14,7 +14,16 @@ The core strategy is:
 - mode-by-mode matched filtering (22, 33, 44),
 - robust coincidence/veto/coherent scoring/ranking in real non-Gaussian detector noise.
 
-## 2) Three-Engine Architecture
+## 2) Statistical Principle (Detection Statistic)
+Pipeline detection/ranking logic follows a Neyman-Pearson likelihood-ratio viewpoint:
+- for simple hypotheses, Neyman-Pearson gives the optimal likelihood-ratio statistic,
+- for composite hypotheses (unknown source parameters), the practical target is an evidence-like statistic obtained by marginalizing the likelihood over model parameters.
+
+Implementation status in this codebase:
+- coherent modules implement explicit marginalization over extrinsic parameters,
+- intrinsic-parameter handling is presently approximate/semi-marginalized in the search path, aligned with the Appendix discussion in [arXiv:1904.07214](https://arxiv.org/abs/1904.07214), rather than a fully rigorous end-to-end intrinsic integral.
+
+## 3) Three-Engine Architecture
 Think of the pipeline as three connected engines:
 
 1. Single-detector trigger engine
@@ -32,7 +41,7 @@ Think of the pipeline as three connected engines:
 - apply prior/sensitivity terms,
 - rank candidates against background.
 
-## 3) Stage-by-Stage Workflow
+## 4) Stage-by-Stage Workflow
 
 ### Stage A: Template banks and priors
 Primary files:
@@ -92,12 +101,13 @@ What happens:
 - aggregate candidates across runs/subbanks,
 - apply coherent and incoherent terms, template/sensitivity corrections,
 - maximize/group to avoid overcounting,
-- produce ranked candidate lists and significance-like outputs.
+- produce ranked candidate lists and significance-like outputs,
+- apply evidence-style composite-hypothesis logic in practice using the available coherent/prior terms and approximation choices.
 
 Why:
 - this is where pipeline outputs become scientifically actionable event candidates.
 
-## 4) Scientific Lineage Context
+## 5) Scientific Lineage Context
 The code mixes:
 - current HM-search machinery and modern coherent marginalization methods,
 - legacy quadrupole-only pipeline components/results inherited from earlier search generations.
@@ -105,7 +115,7 @@ The code mixes:
 The references index contains draft mapping confidence and code relevance notes:
 - `/Users/tejaswi/Work/gwIAS-HM/references/REFERENCES.md`
 
-## 5) What a New Contributor Should Read First
+## 6) What a New Contributor Should Read First
 Recommended order:
 1. `/Users/tejaswi/Work/gwIAS-HM/README.md`
 2. `/Users/tejaswi/Work/gwIAS-HM/.agent/spec/PIPELINE_SPEC.md`
@@ -114,7 +124,8 @@ Recommended order:
 5. `/Users/tejaswi/Work/gwIAS-HM/Pipeline/ranking_HM.py`
 6. template/ML notebooks and modules as needed.
 
-## 6) Practical Caveats
+## 7) Practical Caveats
 - The code includes run/version compatibility paths and legacy behavior toggles.
 - Environment and path assumptions exist in utilities and cluster wrappers.
 - Some features are explicitly hardcoded (e.g., current dominant mode set and detector assumptions), as also noted in the README TODO list.
+- Intrinsic-parameter marginalization is currently approximate/semi-marginalized in parts of the search/ranking path, not a full rigorous integral across all intrinsic dimensions.

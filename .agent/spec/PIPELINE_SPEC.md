@@ -5,7 +5,7 @@ This is the canonical, agent-optimized specification for pipeline aims and archi
 ## Metadata
 ```yaml
 spec_name: GWIAS-HM Canonical Pipeline Spec
-spec_version: 1.0.0
+spec_version: 1.1.0
 last_updated: 2026-02-18
 status: active
 source_of_truth: true
@@ -19,6 +19,12 @@ related_docs:
 ```yaml
 mission:
   primary_goal: "Search for compact binary GW signals with higher harmonics while controlling computational cost and false alarms."
+  statistical_principle:
+    - "Use a Neyman-Pearson likelihood-ratio viewpoint for detection/ranking."
+    - "For composite hypotheses, target an evidence-like statistic via parameter marginalization."
+  implementation_caveat:
+    - "Extrinsic-parameter marginalization is explicit in coherent scoring modules."
+    - "Intrinsic-parameter marginalization is currently approximate/semi-marginalized in parts of the search path, consistent with Appendix discussion in arXiv:1904.07214."
   strategy:
     - "Template compression into basis coefficients (calpha)."
     - "Mode-by-mode filtering and HM-aware scoring."
@@ -108,6 +114,7 @@ constraints:
   - "Some detector/mode assumptions remain partially hardcoded."
   - "Environment/path assumptions exist in utility and cluster code."
   - "Backward-compatibility branches for old run formats are present."
+  - "Composite-hypothesis intrinsic-parameter treatment is not yet a fully rigorous end-to-end marginalization."
 ```
 
 ## Update Protocol
@@ -127,4 +134,5 @@ update_protocol:
 ```
 
 ## Changelog
+- `1.1.0` (2026-02-18): Added explicit Neyman-Pearson/evidence statistical framing and intrinsic-marginalization caveat (arXiv:1904.07214 Appendix alignment).
 - `1.0.0` (2026-02-18): Initial canonical spec created from code walkthrough + references mapping.
