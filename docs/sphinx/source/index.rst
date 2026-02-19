@@ -9,4 +9,7 @@ including API pages generated from module docstrings.
    :caption: Contents
 
    getting_started
+   installation
+   tutorials
+   scientific_background
    api/index

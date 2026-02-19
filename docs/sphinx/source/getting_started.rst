@@ -95,11 +95,10 @@ Detector noise is non-stationary and non-Gaussian. The pipeline therefore separa
 
 This decomposition keeps sensitivity high while controlling false alarms and runtime cost.
 
-6. What to Read Next
---------------------
+6. Where to Go Next
+-------------------
 
-1. ``README.md``
-2. ``.agent/spec/PIPELINE_SPEC.md``
-3. ``Pipeline/triggers_single_detector_HM.py``
-4. ``Pipeline/coincidence_HM.py``
-5. ``Pipeline/ranking_HM.py``
+1. :doc:`installation` for dependency setup and environment checks
+2. :doc:`tutorials` for the recommended notebook sequence
+3. :doc:`scientific_background` for papers and methodological context
+4. :doc:`api/index` for module/class/function-level API details
